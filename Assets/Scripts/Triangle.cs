@@ -6,9 +6,6 @@ using System.Collections;
 [RequireComponent(typeof(MeshFilter))]
 public class Triangle : MonoBehaviour
 {
-	/// Just a test thing, ignooooree
-	public Gradient gradient = new Gradient() { colorKeys = new GradientColorKey[] { new GradientColorKey(Color.white, 0f) } };
-
 	#region Variables
 	private new MeshRenderer renderer;
 	private MeshFilter filter;
@@ -106,10 +103,6 @@ public class Triangle : MonoBehaviour
 
 	void Update()
 	{
-		// The gradient is just a temporary test for the color
-		if (gradient != null)
-			Color = gradient.Evaluate(Mathf.PingPong(Time.time, 1));
-
 		// Do the fun part!
 		UpdateMesh();
 	}
