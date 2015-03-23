@@ -17,21 +17,23 @@ public class Circle : MonoBehaviour
 		set
 		{
 			edges = Mathf.Max(value, 3);
+			float[] newRadius = new float[edges];
+			for (int i = 0; i < newRadius.Length; i++)
+			{
+				newRadius[i] = radius.Length > i ? radius[i] : 1f;
+			}
+			radius = newRadius;
 			isMeshDirty = true;
 		}
 	}
 
-	private float[] radius;
-	public float[] Radius
+	public Color Color
 	{
-		get { return radius; }
-		set
-		{
-			if (value.Length != edges) throw new System.ArgumentException("Radius length must be equal to edge count.");
-			radius = value;
-			isMeshDirty = true;
-		}
+		get { return renderer.material.color; }
+		set { renderer.material.color = value; }
 	}
+
+	private float[] radius;
 
 	void Awake()
 	{
@@ -50,41 +52,33 @@ public class Circle : MonoBehaviour
 
 	void Update()
 	{
-		// If the mesh needs to be rebuilt
-		if (isMeshDirty)
-			UpdateMesh();
+		// Rebuild the mesh if it's dirty
+		if (isMeshDirty) BuildMesh();
 	}
 
-	/// <summary>Set the entire circle's radius.</summary>
-	/// <param name="radius">Radius for circle.</param>
-	public void SetRadius(float radius)
-	{
-		for (int i = 0; i < this.radius.Length; i++)
-		{
-			this.radius[i] = radius;
-		}
-	}
-
-	private void UpdateMesh()
+	private void BuildMesh()
 	{
 		// Mesh no longer needs to be rebuilt
 		isMeshDirty = false;
 
 		// Initialize arrays
 		Vector3[] vertices = new Vector3[edges + 1];
+		Vector2[] uv = new Vector2[edges + 1];
 		int[] triangles = new int[vertices.Length * 3];
 
 		// Center point
-		vertices[0] = Vector2.zero;
+		uv[0] = vertices[0] = Vector2.zero;
 
 		// Build vertices
 		for (int i = 1; i < vertices.Length; i++)
 		{
 			float radians = (i / (float)edges) * 360f * Mathf.Deg2Rad;
 
-			vertices[i] = new Vector2(
+			float rad = radius[i - 1];
+
+			uv[i] = vertices[i] = new Vector2(
 				Mathf.Sin(radians),
-				Mathf.Cos(radians)) * radius[i - 1];
+				Mathf.Cos(radians)) * rad;
 		}
 
 		// Build triangles
@@ -95,6 +89,7 @@ public class Circle : MonoBehaviour
 			triangles[i * 3 + 2] = Mathf.Max((i + 2) % vertices.Length, 1);
 		}
 
+		// Build mesh
 		Mesh mesh = new Mesh();
 		mesh.vertices = vertices;
 		mesh.triangles = triangles;
@@ -103,5 +98,39 @@ public class Circle : MonoBehaviour
 		mesh.RecalculateBounds();
 
 		filter.mesh = mesh;
+	}
+
+	/// <summary>Set the entire circle's radius.</summary>
+	/// <param name="radius">Radius for circle.</param>
+	public void SetRadius(float radius)
+	{
+		for (int i = 0; i < this.radius.Length; i++)
+		{
+			this.radius[i] = radius;
+		}
+		isMeshDirty = true;
+	}
+
+	public void SetRadius(int edge, float radius)
+	{
+		this.radius[edge] = radius;
+		isMeshDirty = true;
+	}
+
+	public float GetRadius(int edge)
+	{
+		return radius[edge];
+	}
+
+	public static Circle Create(int edges, float radius, Vector2 position, Transform parent = null)
+	{
+		var circle = new GameObject("Circle").AddComponent<Circle>();
+		circle.Edges = edges;
+		circle.SetRadius(radius);
+
+		circle.transform.position = position;
+		circle.transform.parent = parent;
+
+		return circle;
 	}
 }
