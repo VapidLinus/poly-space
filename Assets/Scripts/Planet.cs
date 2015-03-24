@@ -11,10 +11,13 @@ public class Planet : MonoBehaviour
 	private float[] heightmap = new float[100];
 	private float[] watermap = new float[100];
 
+	private float shakeProgress = 0;
+	private float shake = 0f;
+
 	void Awake()
 	{
-		circle = Circle.Create(1024, 1f, transform.position, transform);
-		circle.Color = new Color(145 / 255f, 97 / 255f, 48 / 255f);
+		circle = Circle.Create(128, 1f, transform.position, transform);
+		circle.Color = new Color(27 / 255f, 226 / 255f, 21 / 255f);
 
 		for (int i = 0; i < heightmap.Length; i++)
 		{
@@ -24,10 +27,34 @@ public class Planet : MonoBehaviour
 
 	void Update()
 	{
+		float acceleration = (Input.acceleration.magnitude - .8f);
+
+		shake = Mathf.Lerp(shake, 0, Time.deltaTime * .55f) + acceleration * Time.deltaTime * 1.2f;
+		Debug.Log(Input.acceleration.magnitude);
+		if (Input.GetKeyDown(KeyCode.Space)) shake += 1;
+
+		shakeProgress += acceleration * Time.deltaTime;
+
 		for (int i = 0; i < heightmap.Length; i++)
 		{
-			heightmap[i] = 1 + Mathf.Sin(((i / (float)heightmap.Length) * heightmap.Length) * .25f + Time.time * Time.time) * .5f + Mathf.Cos(Time.time + (i / 100f));
+			heightmap[i] = .5f + Mathf.PerlinNoise(i / (10f - shake) - shakeProgress * 2, Time.time + i / 10f + shakeProgress) * shake;
 		}
+
+		float[] clone = (float[])heightmap.Clone();
+		for (int i = 0; i < heightmap.Length; i++)
+		{
+			const int SMOOTHING = 5;
+
+			float average = 0;
+			for (int j = -SMOOTHING; j <= SMOOTHING; j++)
+			{
+				average += clone[MathUtil.Mod(i + j, heightmap.Length)];
+			}
+			average /= SMOOTHING * 2 + 1;
+			heightmap[i] = average;
+		}
+
+		int r = Random.Range(0, heightmap.Length);
 
 		UpdateHeightmap();
 	}

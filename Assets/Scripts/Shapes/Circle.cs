@@ -33,6 +33,12 @@ public class Circle : MonoBehaviour
 		set { renderer.material.color = value; }
 	}
 
+	public Material Material
+	{
+		get { return renderer.material; }
+		set { renderer.material = value; }
+	}
+
 	private float[] radius;
 
 	void Awake()
