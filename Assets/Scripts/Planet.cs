@@ -3,63 +3,175 @@ using System.Collections;
 
 public class Planet : MonoBehaviour
 {
+	public float waterFriction = .95f;
+	public float waterEnergy = .3f;
+
 	public AnimationCurve roundCurve;
 	public AnimationCurve curve;
+
 	private Circle circle;
-	private Circle backCircle;
+	private Circle waterCircle;
 
 	private float[] heightmap = new float[100];
-	private float[] watermap = new float[100];
-
-	private float shakeProgress = 0;
-	private float shake = 0f;
+	private Vector2[] watermap = new Vector2[100];
 
 	void Awake()
 	{
-		circle = Circle.Create(128, 1f, transform.position, transform);
-		circle.Color = new Color(27 / 255f, 226 / 255f, 21 / 255f);
+		circle = Circle.Create(256, 1f, transform.position, transform);
+		circle.Color = new Color(120 / 255f, 72 / 255f, 0 / 255f);
+
+		waterCircle = Circle.Create(256, 1f, transform.position, transform);
+		waterCircle.Color = new Color(167 / 255f, 219 / 255f, 216 / 255f);
 
 		for (int i = 0; i < heightmap.Length; i++)
 		{
-			heightmap[i] = 1f;
+			heightmap[i] = 1.1f;//.5f + (i / 100f) * .5f;
+		}
+
+		for (int i = 0; i < watermap.Length; i++)
+		{
+			watermap[i] = new Vector2(0f, .1f);
 		}
 	}
 
 	void Update()
 	{
-		float acceleration = (Input.acceleration.magnitude - .8f);
+		if (!Input.GetKey(KeyCode.Space))
+			SimulateWater();
 
-		shake = Mathf.Lerp(shake, 0, Time.deltaTime * .55f) + acceleration * Time.deltaTime * 1.2f;
-		Debug.Log(Input.acceleration.magnitude);
-		if (Input.GetKeyDown(KeyCode.Space)) shake += 1;
-
-		shakeProgress += acceleration * Time.deltaTime;
-
-		for (int i = 0; i < heightmap.Length; i++)
+		if (Input.GetKeyDown(KeyCode.S))
 		{
-			heightmap[i] = .5f + Mathf.PerlinNoise(i / (10f - shake) - shakeProgress * 2, Time.time + i / 10f + shakeProgress) * shake;
+			int pos = Random.Range(10, 90);
+			for (int i = pos - 10; i < pos + 10; i++)
+			{
+				watermap[i].y += (10 - Mathf.Abs(pos - i)) * .3f;
+			}
 		}
 
+		if (Input.GetKeyDown(KeyCode.D))
+		{
+			int pos = Random.Range(10, 90);
+			for (int i = pos - 10; i < pos + 10; i++)
+			{
+				heightmap[i] += (10 - Mathf.Abs(pos - i)) * .1f;
+			}
+		}
+
+		if (Input.GetKeyDown(KeyCode.F))
+		{
+			for (int i = 0; i < 100; i++)
+				watermap[i].x += Random.Range(-1f, 1f);
+		}
+
+		for (int i = 0; i < 100; i++)
+		{
+			Debug.DrawLine(transform.position, transform.position + (Vector3)Vector2Util.AngleToVector(i * 3.6f) * (GetWaterHeight(i) + 1), IsWaterInTerrain(i) ? Color.red : Color.green);
+		}
+
+		UpdateHeightmap(heightmap, circle, roundCurve);
+		UpdateHeightmap(watermap, heightmap, waterCircle, roundCurve);
+	}
+
+	void SimulateWater()
+	{
+		for (int i = 0; i < 100; i++)
+		{
+			if (IsWaterInTerrain(i)) continue;
+
+			float left = GetWaterHeight(MathUtil.Mod(i - 1, 100));
+			float middle = GetWaterHeight(i);
+			float right = GetWaterHeight(MathUtil.Mod(i + 1, 100));
+
+			float velocity = 0;
+
+			if (left < 0) left = 0;
+			if (right < 0) right = 0;
+
+			velocity += left - middle;
+			velocity += right - middle;
+
+			watermap[i].x -= velocity * waterEnergy;
+		}
+
+		float[] move = new float[100];
+		for (int i = 0; i < 100; i++)
+		{
+			if (IsWaterInTerrain(i))
+			{
+				move[i] = 0;
+			}
+			else
+			{
+				move[i] = watermap[i].x;
+				watermap[i].x *= waterFriction;
+			}
+		}
+
+		for (int i = 0; i < 100; i++)
+		{
+			MoveWater(i, move[i], move[i] * .1f);
+		}
+	}
+
+	void OnGUI()
+	{
+		GUI.Label(new Rect(10, 10, 200, 20), "Water Friction");
+		waterFriction = GUI.HorizontalSlider(new Rect(10, 30, 200, 20), waterFriction, 0f, 1f);
+		GUI.Label(new Rect(10, 40, 200, 20), "Water Energy");
+		waterEnergy = GUI.HorizontalSlider(new Rect(10, 60, 200, 20), waterEnergy, 0f, 1f);
+	}
+
+	float GetWaterHeight(int i)
+	{
+		return heightmap[i] + watermap[i].y;
+		//return watermap[i].y <= 0 ? 0 : heightmap[i] + watermap[i].y;
+	}
+
+	void MoveWater(int i, float dir, float amount)
+	{
+		int next = MathUtil.Mod(i + (dir > 0 ? 1 : -1), 100);
+
+		// amount = Mathf.Min(amount, watermap[i].y - .001f);
+
+		watermap[i].y -= amount;
+		
+		if (IsWaterInTerrain(next))
+			watermap[next].y = amount;
+		else
+			watermap[next].y += amount;
+	}
+
+	bool IsWaterInTerrain(int i)
+	{
+		return false;//return watermap[i].y <= 0;
+	}
+
+	void SmoothTerrain(int smoothing)
+	{
 		float[] clone = (float[])heightmap.Clone();
 		for (int i = 0; i < heightmap.Length; i++)
 		{
-			const int SMOOTHING = 5;
-
 			float average = 0;
-			for (int j = -SMOOTHING; j <= SMOOTHING; j++)
+			for (int j = -smoothing; j <= smoothing; j++)
 			{
 				average += clone[MathUtil.Mod(i + j, heightmap.Length)];
 			}
-			average /= SMOOTHING * 2 + 1;
+			average /= smoothing * 2 + 1;
 			heightmap[i] = average;
 		}
-
-		int r = Random.Range(0, heightmap.Length);
-
-		UpdateHeightmap();
 	}
 
-	void UpdateHeightmap()
+	static void UpdateHeightmap(Vector2[] watermap, float[] heightmap, Circle circle, AnimationCurve roundCurve)
+	{
+		float[] height = new float[watermap.Length];
+		for (int i = 0; i < height.Length; i++)
+		{
+			height[i] = heightmap[i] + watermap[i].y;
+		}
+		UpdateHeightmap(height, circle, roundCurve);
+	}
+
+	static void UpdateHeightmap(float[] heightmap, Circle circle, AnimationCurve roundCurve)
 	{
 		for (int i = 0; i < circle.Edges; i++)
 		{
@@ -83,34 +195,4 @@ public class Planet : MonoBehaviour
 			circle.SetRadius(i, alpha);
 		}
 	}
-
-	/*void Update()
-	{
-		if (Input.GetMouseButton(0))
-		{
-			Vector2 direction = ((Vector2)(Camera.main.ScreenToWorldPoint(Input.mousePosition) - transform.position)).normalized;
-			AddHeight(Vector2Util.VectorToAngle(direction) / 360f, Time.deltaTime, .1f);
-		}
-		if (Input.GetMouseButton(1))
-		{
-			Vector2 direction = ((Vector2)(Camera.main.ScreenToWorldPoint(Input.mousePosition) - transform.position)).normalized;
-			AddHeight(Vector2Util.VectorToAngle(direction) / 360f, -Time.deltaTime, .1f);
-		}
-	}*/
-
-	/*void AddHeight(float position, float height, float width)
-	{
-		position = MathUtil.Mod(position, 1f);
-
-		int center = Mathf.RoundToInt(circle.Edges * position);
-		int range = Mathf.RoundToInt(circle.Edges * width);
-
-		for (int i = center - range; i < center + range; i++)
-		{
-			float add = (1 - curve.Evaluate(Mathf.Abs(i - center) / (float)range)) * height;
-
-			int index = MathUtil.Mod(i, circle.Edges);
-			circle.SetRadius(index, circle.GetRadius(index) + add);
-		}
-	}*/
 }
